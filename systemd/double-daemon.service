@@ -1,0 +1,10 @@
+[Unit]
+Description=Double Daemon
+
+[Service]
+ExecStart=bash -c "/usr/local/bin/daemon-primary& /usr/local/bin/daemon-secondary&"
+Restart=on-failure
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
