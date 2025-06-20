@@ -1,11 +1,12 @@
 #include "vector_add.h"
+#include "device_buffer.h"
 
 #include <cstdio>
 
 #include <cuda_runtime.h>
 
 template<typename T>
-static __global__ void add_vectors_kernel(const T *a, const T *b, T *c, size_t size)
+__global__ void add_vectors_kernel(const T *a, const T *b, T *c, size_t size)
 {
     unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < size)
@@ -15,20 +16,9 @@ static __global__ void add_vectors_kernel(const T *a, const T *b, T *c, size_t s
 template<typename T>
 void add_vectors_(const T *a, const T *b, T *c, size_t size)
 {
-    const size_t mem_size = size * sizeof(T);
-
-    T *dev_a = nullptr, *dev_b = nullptr, *dev_c = nullptr;
-
-    cudaMalloc(&dev_a, mem_size);
-    cudaMalloc(&dev_b, mem_size);
-    cudaMalloc(&dev_c, mem_size);
-
-    cudaMemcpy(dev_a, a, mem_size, cudaMemcpyHostToDevice);
-    cudaMemcpy(dev_b, b, mem_size, cudaMemcpyHostToDevice);
-
-    add_vectors_kernel<<<(size + 255) / 256, 256>>>(dev_a, dev_b, dev_c, size);
-
-    cudaMemcpy(c, dev_c, mem_size, cudaMemcpyDeviceToHost);
+    DeviceBuffer dev_a(a, size), dev_b(b, size), dev_c(c, size);
+    add_vectors_kernel<<<(size + 255) / 256, 256>>>(dev_a.data(), dev_b.data(), dev_c.data(), size);
+    dev_c.copy_to_host(c);
 }
 
 void add_vectors(const int *a, const int *b, int *c, size_t size)
