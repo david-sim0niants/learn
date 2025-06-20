@@ -1,31 +1,25 @@
 #pragma once
 
+#include "cuda_error.h"
+
 #include <cstddef>
-#include <stdexcept>
 
 template<typename T>
 class DeviceBuffer {
 public:
     explicit DeviceBuffer(std::size_t size) : size_(size)
     {
-        cudaError_t e = cudaMalloc(&data_, size * sizeof(T));
-        if (e != cudaSuccess)
-            throw std::runtime_error(cudaGetErrorString(e));
+        cuda_assert(cudaMalloc(&data_, size * sizeof(T)));
     }
 
     explicit DeviceBuffer(const T *host_data, std::size_t size) : DeviceBuffer(size)
     {
-        copy_from_host(host_data);
-    }
-
-    ~DeviceBuffer()
-    {
-        cudaFree(data_);
+        load_from(host_data);
     }
 
     DeviceBuffer(const DeviceBuffer& rhs) : DeviceBuffer(rhs.size_)
     {
-        copy_from_device(rhs.data_);
+        copy_from(rhs.data_);
     }
 
     DeviceBuffer(DeviceBuffer&& rhs) noexcept
@@ -49,38 +43,35 @@ public:
         return *this;
     }
 
+    ~DeviceBuffer()
+    {
+        cudaFree(data_);
+    }
+
     void swap(DeviceBuffer& other) noexcept
     {
         std::swap(data_, other.data_);
         std::swap(size_, other.size_);
     }
 
-    void copy_from_host(const T *host_data)
+    void load_from(const T *host_data)
     {
-        cudaError_t e = cudaMemcpy(data_, host_data, mem_size(), cudaMemcpyHostToDevice);
-        if (e != cudaSuccess)
-            throw std::runtime_error(cudaGetErrorString(e));
+        cuda_assert(cudaMemcpy(data_, host_data, mem_size(), cudaMemcpyHostToDevice));
     }
 
-    void copy_to_host(T *host_data) const
+    void load_to(T *host_data) const
     {
-        cudaError_t e = cudaMemcpy(host_data, data_, mem_size(), cudaMemcpyDeviceToHost);
-        if (e != cudaSuccess)
-            throw std::runtime_error(cudaGetErrorString(e));
+        cuda_assert(cudaMemcpy(host_data, data_, mem_size(), cudaMemcpyDeviceToHost));
     }
 
-    void copy_from_device(const T *device_data)
+    void copy_from(const T *device_data)
     {
-        cudaError_t e = cudaMemcpy(data_, device_data, mem_size(), cudaMemcpyDeviceToDevice);
-        if (e != cudaSuccess)
-            throw std::runtime_error(cudaGetErrorString(e));
+        cuda_assert(cudaMemcpy(data_, device_data, mem_size(), cudaMemcpyDeviceToDevice));
     }
 
-    void copy_to_device(T *device_data) const
+    void copy_to(T *device_data) const
     {
-        cudaError_t e = cudaMemcpy(device_data, data_, mem_size(), cudaMemcpyDeviceToDevice);
-        if (e != cudaSuccess)
-            throw std::runtime_error(cudaGetErrorString(e));
+        cuda_assert(cudaMemcpy(device_data, data_, mem_size(), cudaMemcpyDeviceToDevice));
     }
 
     inline T *data() noexcept

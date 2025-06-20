@@ -1,4 +1,5 @@
 #include "vector_add.h"
+#include "cuda_error.h"
 #include "device_buffer.h"
 
 #include <cstdio>
@@ -14,14 +15,15 @@ __global__ void add_vectors_kernel(const T *a, const T *b, T *c, size_t size)
 }
 
 template<typename T>
-void add_vectors_(const T *a, const T *b, T *c, size_t size)
+void add_vectors_impl(const T *a, const T *b, T *c, size_t size)
 {
     DeviceBuffer dev_a(a, size), dev_b(b, size), dev_c(c, size);
     add_vectors_kernel<<<(size + 255) / 256, 256>>>(dev_a.data(), dev_b.data(), dev_c.data(), size);
-    dev_c.copy_to_host(c);
+    cuda_assert();
+    dev_c.load_to(c);
 }
 
 void add_vectors(const int *a, const int *b, int *c, size_t size)
 {
-    add_vectors_(a, b, c, size);
+    add_vectors_impl(a, b, c, size);
 }
