@@ -9,8 +9,6 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-set(TEST_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-
 set(SRCS
     vector_add.cpp
 )
@@ -18,7 +16,6 @@ set(SRCS
 set(TARGET_NAME run_tests)
 add_executable(${TARGET_NAME} ${SRCS})
 set_target_properties(${TARGET_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
-target_include_directories(${TARGET_NAME} PRIVATE ${TEST_INCLUDE_DIR})
 target_link_libraries(${TARGET_NAME} PRIVATE gtest_main learncuda_src)
 
 add_test(NAME Test COMMAND run_tests)
