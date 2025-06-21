@@ -4,6 +4,8 @@
 
 #include <cstddef>
 
+#include <cuda_runtime.h>
+
 template<typename T>
 class DeviceBuffer {
 public:
