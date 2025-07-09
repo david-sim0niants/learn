@@ -1,3 +1,4 @@
 [submodule "LearnCUDA"]
 	path = LearnCUDA
 	url = git@github.com:david-sim0niants/LearnCUDA.git
+	branch = master
