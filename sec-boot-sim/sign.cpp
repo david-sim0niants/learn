@@ -50,8 +50,8 @@ void sign(std::iostream& image, EVP_PKEY* priv_key);
 
 void sign(const char* image_fn, const char* priv_key_fn)
 {
-    std::fstream image {image_fn};
-    if (! image)
+    std::fstream image {image_fn, std::ios::in | std::ios::out | std::ios::binary};
+    if (! image.is_open())
         fail("could not open the image file");
 
     UniqueEVP_PKEY priv_key = load_private_key(priv_key_fn);
@@ -64,6 +64,7 @@ void sign(const char* image_fn, const char* priv_key_fn)
 using Signature = std::vector<uint8_t>;
 
 Signature make_signature(const CheckSum& checksum, EVP_PKEY* priv_key);
+void put_sign(std::ostream& image, const Signature& sig);
 
 void sign(std::iostream& image, EVP_PKEY* priv_key)
 {
@@ -71,12 +72,50 @@ void sign(std::iostream& image, EVP_PKEY* priv_key)
     if (! compute_checksum(image, checksum))
         fail("failed computing checksum");
 
-    Signature signature = make_signature(checksum, priv_key);
-    // TODO
+    Signature sig = make_signature(checksum, priv_key);
+    if (sig.empty())
+        fail("failed making signature");
+
+    put_sign(image, sig);
+    image.flush();
 }
 
 Signature make_signature(const CheckSum& checksum, EVP_PKEY* priv_key)
 {
-    // TODO
-    return {};
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(priv_key, nullptr);
+    if (! ctx)
+        return {};
+
+    size_t siglen;
+    Signature sig;
+
+    if (EVP_PKEY_sign_init(ctx) <= 0 ||
+
+        EVP_PKEY_sign(ctx, nullptr, &siglen, checksum.data(), checksum.size()) <= 0 ||
+
+        (sig.resize(siglen),
+         EVP_PKEY_sign(ctx, sig.data(), &siglen, checksum.data(), checksum.size()) <= 0)
+    )
+        sig = {};
+
+    EVP_PKEY_CTX_free(ctx);
+    return sig;
+}
+
+void put_sign(std::ostream& image, const Signature& sig)
+{
+    image.seekp(0, std::ios::end);
+    image.write(reinterpret_cast<const char*>(sig.data()), sig.size());
+
+    uint32_t siglen = sig.size();
+
+    char footer[] = {
+        char((siglen >> 0) & 0xFF),
+        char((siglen >> 8) & 0xFF),
+        char((siglen >> 16) & 0xFF),
+        char((siglen >> 24) & 0xFF),
+        'S', 'I', 'G', 'N'
+    };
+
+    image.write(footer, sizeof(footer) / sizeof(footer[0]));
 }
