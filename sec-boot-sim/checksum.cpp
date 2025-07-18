@@ -6,6 +6,15 @@
 
 bool compute_checksum(std::istream& is, CheckSum& checksum)
 {
+    std::streampos begpos = is.tellg();
+    is.seekg(0, std::ios::end);
+    std::streampos endpos = is.tellg();
+    is.seekg(begpos);
+    return compute_checksum(is, endpos, checksum);
+}
+
+bool compute_checksum(std::istream& is, std::streampos endpos, CheckSum& checksum)
+{
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     if (! ctx)
         return false;
@@ -14,9 +23,9 @@ bool compute_checksum(std::istream& is, CheckSum& checksum)
     if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr)) {
         char buf[BUFSIZ];
 
-        while (! is.eof()) {
-            is.read(buf, BUFSIZ);
-            if (is.fail() && ! is.eof() || ! EVP_DigestUpdate(ctx, buf, is.gcount())) {
+        while (is.tellg() < endpos) {
+            is.read(buf, std::min(std::streamsize(BUFSIZ), endpos - is.tellg()));
+            if (is.fail() || ! EVP_DigestUpdate(ctx, buf, is.gcount())) {
                 ok_so_far = false;
                 break;
             }

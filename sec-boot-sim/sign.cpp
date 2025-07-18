@@ -2,12 +2,12 @@
 #include <cstdlib>
 #include <fstream>
 #include <string_view>
-#include <vector>
 
 #include <openssl/evp.h>
 
 #include "checksum.h"
 #include "pkey.h"
+#include "signature.h"
 
 const char* self = nullptr;
 
@@ -60,8 +60,6 @@ void sign(const char* image_fn, const char* priv_key_fn)
 
     sign(image, priv_key.get());
 }
-
-using Signature = std::vector<uint8_t>;
 
 Signature make_signature(const CheckSum& checksum, EVP_PKEY* priv_key);
 void put_sign(std::ostream& image, const Signature& sig);
