@@ -17,16 +17,16 @@ allprojects {
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.davsm.hw"
+    namespace = "com.davsm.hw"
 
-    compileSdkVersion 34
+    compileSdkVersion = 34
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     defaultConfig {
-        targetSdk 34
+        targetSdk = 34
     }
 }
