@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title></title>
+
+        <script id="vertex-shader" type="x-shader/x-vertex">
+            #version 300 es
+            in vec3 position;
+            in vec4 color;
+            out vec4 fcolor;
+            void main() {
+                gl_Position = vec4(position, 1);
+                fcolor = color;
+            }
+        </script>
+
+        <script id="fragment-shader" type="x-shader/x-fragment">
+            #version 300 es
+            precision mediump float;
+            in vec4 fcolor;
+            out vec4 fragColor;
+            void main() {
+                fragColor = fcolor;
+            }
+        </script>
+
+        <style>
+            canvas {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+
+            body {
+                margin: 0;
+                overflow: hidden;
+                background-color: black;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="main-canvas"></canvas>
+
+        <script src="main.js"></script>
+    </body>
+</html>
