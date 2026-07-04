@@ -1,7 +1,13 @@
 #include <format>
 #include <tuple>
 
+#include "task_tracker.hpp"
+
 #include <CLI/CLI.hpp>
+
+using task_tracker::TaskTracker;
+using task_tracker::taskTrackerView;
+using task_tracker::taskTracker;
 
 namespace {
 
@@ -43,7 +49,7 @@ int add(SubCmdCtx&& ctx)
 
 	CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
-	std::cout << "Adding task: " << title << std::endl;
+    taskTracker().add(title);
 	return 0;
 }
 
@@ -57,6 +63,7 @@ int list(SubCmdCtx&& ctx)
 
 	CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
+	// taskTrackerView().list(status, category);
 	std::cout << "Listing tasks..." << std::endl;
 	return 0;
 }
