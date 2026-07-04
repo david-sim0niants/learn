@@ -8,17 +8,17 @@ namespace task_tracker {
 
 class TaskTrackerBase {
   protected:
-	TaskTrackerBase() = default;
-	~TaskTrackerBase();
+    TaskTrackerBase() = default;
+    ~TaskTrackerBase();
 
-	TaskTrackerBase(const TaskTrackerBase&) = delete;
-	TaskTrackerBase& operator=(const TaskTrackerBase&) = delete;
+    TaskTrackerBase(const TaskTrackerBase&) = delete;
+    TaskTrackerBase& operator=(const TaskTrackerBase&) = delete;
 
-	TaskTrackerBase(TaskTrackerBase&&);
-	TaskTrackerBase& operator=(TaskTrackerBase&&);
+    TaskTrackerBase(TaskTrackerBase&&);
+    TaskTrackerBase& operator=(TaskTrackerBase&&);
 
-	class Impl;
-	std::unique_ptr<Impl> impl;
+    class Impl;
+    std::unique_ptr<Impl> impl;
 };
 
 class TaskTrackerView : protected TaskTrackerBase {
@@ -28,9 +28,9 @@ class TaskTrackerView : protected TaskTrackerBase {
 
 class TaskTracker final : TaskTrackerView {
   public:
-	static TaskTracker& instance();
+    static TaskTracker& instance();
 
-	void add(std::string_view title);
+    void add(std::string_view title);
 };
 
 inline TaskTrackerView& taskTrackerView()
@@ -40,7 +40,7 @@ inline TaskTrackerView& taskTrackerView()
 
 inline TaskTracker& taskTracker()
 {
-	return TaskTracker::instance();
+    return TaskTracker::instance();
 }
 
 } // namespace task_tracker

@@ -18,4 +18,4 @@ SpaceAfterLogicalNot: true
 SpaceAfterTemplateKeyword: false
 SpacesInAngles: Leave
 TabWidth: 4
-UseTab: Always
+UseTab: Never
