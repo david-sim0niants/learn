@@ -3,7 +3,8 @@
 #include "sqlite_helpers.hpp"
 
 #include <filesystem>
-#include <iostream>
+#include <fstream>
+#include <sstream>
 
 #include <sqlite3.h>
 
@@ -19,8 +20,16 @@ SQLite openDB(int flags)
 
 void ensureTablesExist(SQLite& db)
 {
-    db.exec(
-        "CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL);");
+    auto init_db_path = platform::getSharedDataDirectory() / "init_db.sql";
+    std::ifstream file(init_db_path);
+
+    if (! file)
+        throw std::runtime_error("Failed to open init_db.sql");
+
+    std::stringstream ss;
+    ss << file.rdbuf();
+
+    db.exec(ss.str().c_str());
 }
 
 } // namespace
@@ -32,9 +41,10 @@ class TaskTrackerBase::Impl {
         ensureTablesExist(db);
     }
 
-    void add(std::string_view title)
+    int64_t add(std::string_view title)
     {
-        const char* sql = "INSERT INTO tasks (title) VALUES (?);";
+        constexpr char sql[] =
+            "INSERT INTO tasks (title, status) VALUES (?, 'todo');";
 
         int ret = db.prepare(sql).bind(title).step();
 
@@ -45,6 +55,8 @@ class TaskTrackerBase::Impl {
             default:
                 throw SQLiteException(ret);
         }
+
+        return db.getLastInsertRowId();
     }
 
   private:
@@ -73,9 +85,9 @@ TaskTracker& TaskTracker::instance()
                : (instance.impl = std::make_unique<Impl>(flags), instance);
 }
 
-void TaskTracker::add(std::string_view title)
+int64_t TaskTracker::add(std::string_view title)
 {
-    impl->add(title);
+    return impl->add(title);
 }
 
 } // namespace task_tracker

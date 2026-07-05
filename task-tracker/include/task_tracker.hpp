@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -21,6 +22,12 @@ class TaskTrackerBase {
     std::unique_ptr<Impl> impl;
 };
 
+enum class TaskStatus {
+    Todo,
+    InProgress,
+    Done,
+};
+
 class TaskTrackerView : protected TaskTrackerBase {
   public:
     static TaskTrackerView& instance();
@@ -30,7 +37,7 @@ class TaskTracker final : TaskTrackerView {
   public:
     static TaskTracker& instance();
 
-    void add(std::string_view title);
+    int64_t add(std::string_view title);
 };
 
 inline TaskTrackerView& taskTrackerView()

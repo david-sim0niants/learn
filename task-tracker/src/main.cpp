@@ -49,7 +49,7 @@ int add(SubCmdCtx&& ctx)
 
     CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
-    taskTracker().add(title);
+    std::cout << "New task ID: " << taskTracker().add(title) << std::endl;
     return 0;
 }
 

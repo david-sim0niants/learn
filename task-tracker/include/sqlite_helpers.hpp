@@ -9,17 +9,48 @@ namespace task_tracker {
 
 class SQLiteException : public std::exception {
   public:
-    explicit SQLiteException(int code) : code(code)
+    explicit SQLiteException(int code) : code_(code)
+    {
+    }
+
+    explicit SQLiteException(sqlite3* db, int code)
+        : code_(code), context_error(sqlite3_errmsg(db)),
+          full_error(std::string(message()) + ": " + contextError())
     {
     }
 
     const char* what() const noexcept override
     {
-        return sqlite3_errstr(code);
+        return fullError();
+    }
+
+    inline int code() const noexcept
+    {
+        return code_;
+    }
+
+    inline const char* message() const noexcept
+    {
+        return sqlite3_errstr(code_);
+    }
+
+    inline const char* contextError() const noexcept
+    {
+        return context_error.c_str();
+    }
+
+    inline const char* fullError() const noexcept
+    {
+        if (full_error.empty())
+            return message();
+        else
+            return full_error.c_str();
     }
 
   private:
-    int code;
+    int code_;
+    std::string context_error;
+    std::string full_error;
 };
 
 sqlite3* openSQLite(const char* db_path, int flags);
@@ -30,12 +61,12 @@ void finalizeSQLiteStatement(sqlite3_stmt* stmt);
 
 class SQLiteStatement {
   public:
-    explicit SQLiteStatement(sqlite3_stmt* stmt)
+    explicit SQLiteStatement(sqlite3* db, sqlite3_stmt* stmt) : db(db)
     {
         this->stmt.reset(stmt);
     }
 
-    explicit SQLiteStatement(sqlite3* db, const char* sql)
+    explicit SQLiteStatement(sqlite3* db, const char* sql) : db(db)
     {
         this->stmt.reset(prepareSQLiteStatement(db, sql));
     }
@@ -70,6 +101,7 @@ class SQLiteStatement {
 
     std::unique_ptr<sqlite3_stmt, void (*)(sqlite3_stmt*)> stmt{
         nullptr, finalizeSQLiteStatement};
+    sqlite3* db;
 };
 
 class SQLite {
@@ -90,6 +122,11 @@ class SQLite {
     }
 
     void exec(const char* sql);
+
+    inline int64_t getLastInsertRowId() const noexcept
+    {
+        return sqlite3_last_insert_rowid(db.get());
+    }
 
   private:
     std::unique_ptr<sqlite3, void (*)(sqlite3*)> db{nullptr, closeSQLite};
