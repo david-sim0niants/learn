@@ -10,5 +10,7 @@ set(ROOT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 set(SHARED_DATA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share)
 
+add_compile_definitions(SQLITE_ENABLE_SQLLOG=1)
+
 add_subdirectory(third_party)
 add_subdirectory(src)

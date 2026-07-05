@@ -28,12 +28,40 @@ enum class TaskStatus {
     Done,
 };
 
+inline std::optional<TaskStatus> toTaskStatus(std::string_view status)
+{
+    if (status == "todo")
+        return TaskStatus::Todo;
+    else if (status == "in_progress")
+        return TaskStatus::InProgress;
+    else if (status == "done")
+        return TaskStatus::Done;
+    else
+        return std::nullopt;
+}
+
+struct Task {
+    int64_t id;
+    std::string title;
+    std::optional<std::string> category;
+    TaskStatus status;
+};
+
+struct TaskFilter {
+    std::optional<std::string> category;
+    std::optional<TaskStatus> status;
+};
+
 class TaskTrackerView : protected TaskTrackerBase {
   public:
     static TaskTrackerView& instance();
+
+    using Callback = std::function<bool(const Task& task)>;
+
+    void list(const Callback& cb, const TaskFilter& filter = TaskFilter());
 };
 
-class TaskTracker final : TaskTrackerView {
+class TaskTracker final : public TaskTrackerView {
   public:
     static TaskTracker& instance();
 

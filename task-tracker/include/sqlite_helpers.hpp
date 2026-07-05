@@ -71,18 +71,37 @@ class SQLiteStatement {
         this->stmt.reset(prepareSQLiteStatement(db, sql));
     }
 
+    /* Bind argument at the current index. */
     template<typename Self, typename T>
     decltype(auto) bind(this Self&& self, T&& arg)
     {
         self.bindArg(std::forward<T>(arg));
+        ++self.arg_idx;
         return std::forward<Self>(self);
     }
-    // other bind overloads will be added when needed
 
-    /* Bind multiple arguments in one call. */
+    /* Bind argument at the given index. */
+    template<typename Self, typename T>
+    decltype(auto) bind(this Self&& self, unsigned int idx, T&& arg)
+    {
+        self.arg_idx = idx;
+        self.bindArg(arg);
+        ++self.arg_idx;
+        return std::forward<Self>(self);
+    }
+
+    /* Bind multiple arguments in one call starting from the current index. */
     template<typename... Args>
     decltype(auto) bind(this auto&& self, Args&&... args)
     {
+        return (self.bind(std::forward<Args>(args)), ...);
+    }
+
+    /* Bind multiple arguments in one call starting from the given index. */
+    template<typename... Args>
+    decltype(auto) bind(this auto&& self, unsigned int idx, Args&&... args)
+    {
+        self.arg_idx = idx;
         return (self.bind(std::forward<Args>(args)), ...);
     }
 
@@ -98,10 +117,14 @@ class SQLiteStatement {
 
   private:
     void bindArg(std::string_view text);
+    void bindArg(int64_t num);
+
+    // other bind overloads will be added on demand
 
     std::unique_ptr<sqlite3_stmt, void (*)(sqlite3_stmt*)> stmt{
         nullptr, finalizeSQLiteStatement};
     sqlite3* db;
+    unsigned int arg_idx = 1;
 };
 
 class SQLite {

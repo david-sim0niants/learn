@@ -26,16 +26,32 @@ void runSubcommand(const Subcommand& sub_cmd, int argc, char* argv[])
 
     CLI::App parser(description);
 
-    char* const sub_cmd_arg = argv[1];
+    struct Defer {
+        char** argv;
+        char* sub_cmd_arg;
+
+        ~Defer()
+        {
+            argv[1] = sub_cmd_arg;
+        }
+    } defer{argv, argv[1]};
+
     std::string full_cmd = std::format("{} {}", argv[0], name);
     argv[1] = full_cmd.data();
 
-    try {
-        callback(SubCmdCtx{parser, argc - 1, &argv[1]});
-    } catch (...) {
-        argv[1] = sub_cmd_arg;
-        throw;
-    }
+    callback(SubCmdCtx{parser, argc - 1, &argv[1]});
+}
+
+bool printTask(const task_tracker::Task& task)
+{
+    const char* status_map[] = {"Todo       ", "In Progress", "Done       "};
+    const char* status_str = status_map[std::to_underlying(task.status)];
+    const char* category =
+        task.category.has_value() ? task.category->c_str() : "(none)";
+
+    std::println(std::cout, "{}. {} | {} / {}", task.id, status_str, category,
+                 task.title);
+    return true;
 }
 
 namespace subcommands {
@@ -57,14 +73,21 @@ int list(SubCmdCtx&& ctx)
 {
     auto& parser = ctx.parser;
 
-    std::string status, category;
-    parser.add_option("--status", status, "Filter tasks by status");
-    parser.add_option("--category", category, "Filter tasks by category");
+    task_tracker::TaskFilter filter;
+    parser.add_option("--category", filter.category, "Filter tasks by category");
+
+    std::string status;
+    parser.add_option("--status", status, "Filter tasks by status (todo, in_progress, done)");
 
     CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
-    // taskTrackerView().list(status, category);
-    std::cout << "Listing tasks..." << std::endl;
+    filter.status = task_tracker::toTaskStatus(status);
+    if (! status.empty() && ! filter.status.has_value()) {
+        std::cerr << "Invalid status: " << status << std::endl;
+        return 1;
+    }
+
+    taskTrackerView().list(printTask, filter);
     return 0;
 }
 

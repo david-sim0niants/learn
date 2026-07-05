@@ -1,6 +1,8 @@
 #include "sqlite_helpers.hpp"
 
-#include <iostream>
+#include <cassert>
+#include <limits>
+#include <optional>
 
 namespace task_tracker {
 
@@ -43,9 +45,46 @@ void finalizeSQLiteStatement(sqlite3_stmt* stmt)
 
 void SQLiteStatement::bindArg(std::string_view text)
 {
-    throwIfError(db, sqlite3_bind_text(stmt.get(), 1, text.data(),
+    assert(text.size() <= (size_t)std::numeric_limits<int>::max());
+    throwIfError(db, sqlite3_bind_text(stmt.get(), arg_idx, text.data(),
                                        static_cast<int>(text.size()),
                                        SQLITE_TRANSIENT));
+}
+
+void SQLiteStatement::bindArg(int64_t num)
+{
+    throwIfError(db, sqlite3_bind_int64(stmt.get(), arg_idx, num));
+}
+
+template<>
+int64_t SQLiteStatement::column(int col)
+{
+    return sqlite3_column_int64(stmt.get(), col);
+}
+
+template<>
+std::string SQLiteStatement::column(int col)
+{
+    auto text = sqlite3_column_text(stmt.get(), col);
+    if (text)
+        return reinterpret_cast<const char*>(text);
+    else
+        return "";
+}
+
+template<>
+std::optional<std::string> SQLiteStatement::column(int col)
+{
+    auto text = sqlite3_column_text(stmt.get(), col);
+    if (text)
+        return reinterpret_cast<const char*>(text);
+    else
+        return std::nullopt;
+}
+
+int SQLiteStatement::columnType(int col)
+{
+    return sqlite3_column_type(stmt.get(), col);
 }
 
 void SQLite::exec(const char* sql)
