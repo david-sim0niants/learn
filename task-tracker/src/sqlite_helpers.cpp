@@ -6,6 +6,8 @@
 
 namespace task_tracker {
 
+namespace {
+
 inline void throwIfError(int ret)
 {
     if (ret != SQLITE_OK)
@@ -17,6 +19,8 @@ inline void throwIfError(sqlite3* db, int ret)
     if (ret != SQLITE_OK)
         throw SQLiteException(db, ret);
 }
+
+} // namespace
 
 sqlite3* openSQLite(const char* db_path, int flags)
 {
@@ -43,17 +47,13 @@ void finalizeSQLiteStatement(sqlite3_stmt* stmt)
     sqlite3_finalize(stmt);
 }
 
-void SQLiteStatement::bindArg(std::string_view text)
+int SQLiteStatement::step()
 {
-    assert(text.size() <= (size_t)std::numeric_limits<int>::max());
-    throwIfError(db, sqlite3_bind_text(stmt.get(), arg_idx, text.data(),
-                                       static_cast<int>(text.size()),
-                                       SQLITE_TRANSIENT));
-}
-
-void SQLiteStatement::bindArg(int64_t num)
-{
-    throwIfError(db, sqlite3_bind_int64(stmt.get(), arg_idx, num));
+    int ret = sqlite3_step(stmt.get());
+    if (ret != SQLITE_DONE && ret != SQLITE_ROW)
+        throw SQLiteException(db, ret);
+    else
+        return ret;
 }
 
 template<>
@@ -85,6 +85,19 @@ std::optional<std::string> SQLiteStatement::column(int col)
 int SQLiteStatement::columnType(int col)
 {
     return sqlite3_column_type(stmt.get(), col);
+}
+
+void SQLiteStatement::bindArg(std::string_view text)
+{
+    assert(text.size() <= (size_t)std::numeric_limits<int>::max());
+    throwIfError(db, sqlite3_bind_text(stmt.get(), arg_idx, text.data(),
+                                       static_cast<int>(text.size()),
+                                       SQLITE_TRANSIENT));
+}
+
+void SQLiteStatement::bindArg(int64_t num)
+{
+    throwIfError(db, sqlite3_bind_int64(stmt.get(), arg_idx, num));
 }
 
 void SQLite::exec(const char* sql)

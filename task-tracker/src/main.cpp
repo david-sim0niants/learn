@@ -1,4 +1,5 @@
-#include <format>
+#include <iostream>
+#include <print>
 #include <tuple>
 
 #include "task_tracker.hpp"
@@ -20,7 +21,7 @@ struct SubCmdCtx {
 using Subcommand =
     std::tuple<const char*, const char*, int (*)(SubCmdCtx&& ctx)>;
 
-void runSubcommand(const Subcommand& sub_cmd, int argc, char* argv[])
+int runSubcommand(const Subcommand& sub_cmd, int argc, char* argv[])
 {
     auto& [name, description, callback] = sub_cmd;
 
@@ -39,7 +40,7 @@ void runSubcommand(const Subcommand& sub_cmd, int argc, char* argv[])
     std::string full_cmd = std::format("{} {}", argv[0], name);
     argv[1] = full_cmd.data();
 
-    callback(SubCmdCtx{parser, argc - 1, &argv[1]});
+    return callback(SubCmdCtx{parser, argc - 1, &argv[1]});
 }
 
 bool printTask(const task_tracker::Task& task)
@@ -54,6 +55,17 @@ bool printTask(const task_tracker::Task& task)
     return true;
 }
 
+bool parseStatus(std::optional<task_tracker::TaskStatus>& status,
+                 std::string_view status_str)
+{
+    status = task_tracker::toTaskStatus(status_str);
+    if (! status.has_value() && ! status_str.empty()) {
+        std::cerr << "Invalid status: " << status_str << std::endl;
+        return false;
+    }
+    return true;
+}
+
 namespace subcommands {
 
 int add(SubCmdCtx&& ctx)
@@ -65,7 +77,23 @@ int add(SubCmdCtx&& ctx)
 
     CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
-    std::cout << "New task ID: " << taskTracker().add(title) << std::endl;
+    int64_t task_id = taskTracker().add(title);
+    if (task_id < 0) {
+        std::cerr << "Task with this title already exists: " << title
+                  << std::endl;
+        return 1;
+    }
+
+    auto task = taskTrackerView().get(task_id);
+    if (! task) {
+        std::println(std::cerr,
+                     "Error: task with id {} was not found after adding",
+                     task_id);
+        return 1;
+    }
+
+    std::println("Added task: ");
+    printTask(*task);
     return 0;
 }
 
@@ -74,18 +102,17 @@ int list(SubCmdCtx&& ctx)
     auto& parser = ctx.parser;
 
     task_tracker::TaskFilter filter;
-    parser.add_option("--category", filter.category, "Filter tasks by category");
+    parser.add_option("--category", filter.category,
+                      "Filter tasks by category");
 
     std::string status;
-    parser.add_option("--status", status, "Filter tasks by status (todo, in_progress, done)");
+    parser.add_option("--status", status,
+                      "Filter tasks by status (todo, in_progress, done)");
 
     CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
-    filter.status = task_tracker::toTaskStatus(status);
-    if (! status.empty() && ! filter.status.has_value()) {
-        std::cerr << "Invalid status: " << status << std::endl;
+    if (! parseStatus(filter.status, status))
         return 1;
-    }
 
     taskTrackerView().list(printTask, filter);
     return 0;
@@ -95,18 +122,40 @@ int update(SubCmdCtx&& ctx)
 {
     auto& parser = ctx.parser;
 
-    int id;
-    parser.add_option("id", id, "ID of the task to update")->required();
+    int64_t task_id;
+    parser.add_option("id", task_id, "ID of the task to update")->required();
 
-    std::vector<std::string> fields;
-    parser
-        .add_option("fields", fields,
-                    "Fields to update (can be specified multiple times)")
-        ->required();
+    task_tracker::TaskUpdate update;
+    parser.add_option("--title", update.title, "New title of the task");
+    parser.add_option("--category", update.category,
+                      "New category of the task");
+
+    std::string status;
+    parser.add_option("--status", status,
+                      "New status of the task (todo, in_progress, done)");
 
     CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
-    std::cout << "Updating task ID: " << id << std::endl;
+    if (! parseStatus(update.status, status))
+        return 1;
+
+    task_id = taskTracker().update(task_id, update);
+
+    if (task_id < 0) {
+        std::cerr << "Task not found: " << task_id << std::endl;
+        return 1;
+    }
+
+    auto task = taskTrackerView().get(task_id);
+    if (! task) {
+        std::println(std::cerr,
+                     "Error: task with id {} was not found after updating",
+                     task_id);
+        return 1;
+    }
+
+    std::println("Updated task: ");
+    printTask(*task);
     return 0;
 }
 
@@ -209,13 +258,14 @@ int main(int argc, char* argv[])
     };
 
     CLI::App app{"Task Tracker"};
+    int ret = 0;
 
     for (auto&& sub_cmd : sub_cmds) {
         auto& [name, description, callback] = sub_cmd;
         auto sub_cmd_parser = app.add_subcommand(name, description);
         if (callback)
             sub_cmd_parser->callback(
-                [&] { runSubcommand(sub_cmd, argc, argv); });
+                [&] { ret = runSubcommand(sub_cmd, argc, argv); });
     }
 
     if (argc < 2) {
@@ -223,6 +273,6 @@ int main(int argc, char* argv[])
         return 0;
     } else {
         CLI11_PARSE(app, 2, argv);
-        return 0;
+        return ret;
     }
 }

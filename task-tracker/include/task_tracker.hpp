@@ -52,12 +52,19 @@ struct TaskFilter {
     std::optional<TaskStatus> status;
 };
 
+struct TaskUpdate {
+    std::optional<std::string_view> title;
+    std::optional<std::string_view> category;
+    std::optional<TaskStatus> status;
+};
+
 class TaskTrackerView : protected TaskTrackerBase {
   public:
     static TaskTrackerView& instance();
 
     using Callback = std::function<bool(const Task& task)>;
 
+    std::optional<Task> get(int64_t id);
     void list(const Callback& cb, const TaskFilter& filter = TaskFilter());
 };
 
@@ -66,6 +73,7 @@ class TaskTracker final : public TaskTrackerView {
     static TaskTracker& instance();
 
     int64_t add(std::string_view title);
+    int64_t update(int64_t id, const TaskUpdate& update);
 };
 
 inline TaskTrackerView& taskTrackerView()

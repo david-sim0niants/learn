@@ -59,19 +59,29 @@ class TaskTrackerBase::Impl {
     int64_t add(std::string_view title)
     {
         constexpr char sql[] =
-            "INSERT INTO tasks (title, status) VALUES (?, 'todo');";
+            "INSERT OR IGNORE INTO tasks (title, status) VALUES (?, 'todo');";
 
-        int ret = db.prepare(sql).bind(title).step();
+        if (db.prepare(sql).bind(title).step() != SQLITE_DONE)
+            throw std::runtime_error("Unexpected error while adding task");
+        else
+            return db.getChanges() > 0 ? db.getLastInsertRowId() : -1;
+    }
 
-        switch (ret) {
-            case SQLITE_DONE:
-                break;
-            case SQLITE_ROW:
-            default:
-                throw SQLiteException(ret);
-        }
+    std::optional<Task> get(int64_t id)
+    {
+        constexpr char sql[] = R""""(
+            SELECT t.id, t.title, c.name, t.status
+            FROM tasks t
+            LEFT JOIN categories c
+            ON t.category = c.id
+            WHERE t.id = ?;
+        )"""";
 
-        return db.getLastInsertRowId();
+        auto stmt = db.prepare(sql).bind(id);
+        if (stmt.step() == SQLITE_ROW)
+            return toTask(stmt);
+        else
+            throw std::runtime_error("Unexpected error while retrieving task");
     }
 
     void list(const TaskTrackerView::Callback& cb, const TaskFilter& filter)
@@ -81,9 +91,9 @@ class TaskTrackerBase::Impl {
             FROM tasks t
             LEFT JOIN categories c
             ON t.category = c.id
-    )"""";
+            WHERE 1=1
+        )"""";
 
-        sql += " WHERE 1=1";
         if (filter.category.has_value())
             sql += " AND c.name = ?";
         if (filter.status.has_value())
@@ -99,34 +109,78 @@ class TaskTrackerBase::Impl {
         if (filter.status.has_value())
             stmt.bind(toString(*filter.status));
 
-        while (stmt.step() == SQLITE_ROW) {
-            assert(stmt.columnType(0) == SQLITE_INTEGER);
-            assert(stmt.columnType(1) == SQLITE_TEXT);
-            assert(stmt.columnType(2) == SQLITE_TEXT ||
-                   stmt.columnType(2) == SQLITE_NULL);
-            assert(stmt.columnType(3) == SQLITE_TEXT);
+        while (stmt.step() == SQLITE_ROW)
+            cb(toTask(stmt));
+    }
 
-            Task task = {
-                .id = stmt.column<int64_t>(0),
-                .title = stmt.column<std::string>(1),
-                .category = stmt.column<std::optional<std::string>>(2),
-                .status = toTaskStatus(stmt.column<std::string>(3)).value(),
-            };
-            cb(task);
+    int64_t update(int64_t id, const TaskUpdate& update)
+    {
+        std::string sql = "UPDATE tasks SET ";
+
+        if (update.title.has_value())
+            sql += "title = :title, ";
+
+        if (update.category.has_value()) {
+            ensureCategoryExists(*update.category);
+            sql +=
+                "category = (SELECT id FROM categories WHERE name = :category), ";
         }
+
+        if (update.status.has_value())
+            sql += "status = :status, ";
+
+        if (sql.ends_with(", "))
+            sql.erase(sql.size() - 2); // Remove trailing comma and space
+        else
+            return id; // nothing to be updated
+
+        sql += " WHERE id = :id;";
+
+        auto stmt = db.prepare(sql.c_str());
+
+        if (update.title.has_value())
+            stmt.bind(":title", *update.title);
+        if (update.category.has_value())
+            stmt.bind(":category", *update.category);
+        if (update.status.has_value())
+            stmt.bind(":status", toString(*update.status));
+
+        stmt.bind(":id", id);
+
+        if (stmt.step() != SQLITE_DONE)
+            throw std::runtime_error("Unexpected error while updating task");
+
+        if (db.getChanges() == 0)
+            return -1; // No rows updated, task not found
+        else
+            return id;
     }
 
   private:
-    std::string fetchCategory(int64_t category_id)
+    static Task toTask(SQLiteStatement& stmt)
     {
-        constexpr char sql[] = "SELECT name FROM categories WHERE id = ?;";
+        assert(stmt.columnType(0) == SQLITE_INTEGER);
+        assert(stmt.columnType(1) == SQLITE_TEXT);
+        assert(stmt.columnType(2) == SQLITE_TEXT ||
+               stmt.columnType(2) == SQLITE_NULL);
+        assert(stmt.columnType(3) == SQLITE_TEXT);
 
-        auto stmt = db.prepare(sql).bind(category_id);
+        return Task{
+            .id = stmt.column<int64_t>(0),
+            .title = stmt.column<std::string>(1),
+            .category = stmt.column<std::optional<std::string>>(2),
+            .status = toTaskStatus(stmt.column<std::string>(3)).value(),
+        };
+    }
 
-        if (stmt.step() != SQLITE_ROW)
-            return "";
+    void ensureCategoryExists(std::string_view category)
+    {
+        constexpr char sql[] =
+            "INSERT OR IGNORE INTO categories (name) VALUES (?);";
 
-        return stmt.column<std::string>(0);
+        if (db.prepare(sql).bind(category).step() != SQLITE_DONE)
+            throw std::runtime_error(
+                "Unexpected error while creating or checking for category");
     }
 
     SQLite db;
@@ -143,6 +197,11 @@ TaskTrackerView& TaskTrackerView::instance()
     return instance.impl
                ? instance
                : (instance.impl = std::make_unique<Impl>(flags), instance);
+}
+
+std::optional<Task> TaskTrackerView::get(int64_t id)
+{
+    return impl->get(id);
 }
 
 void TaskTrackerView::list(const Callback& cb, const TaskFilter& filter)
@@ -162,6 +221,11 @@ TaskTracker& TaskTracker::instance()
 int64_t TaskTracker::add(std::string_view title)
 {
     return impl->add(title);
+}
+
+int64_t TaskTracker::update(int64_t id, const TaskUpdate& update)
+{
+    return impl->update(id, update);
 }
 
 } // namespace task_tracker

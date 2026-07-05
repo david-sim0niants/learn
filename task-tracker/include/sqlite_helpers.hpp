@@ -2,6 +2,7 @@
 
 #include <exception>
 #include <memory>
+#include <stdexcept>
 
 #include <sqlite3.h>
 
@@ -90,6 +91,20 @@ class SQLiteStatement {
         return std::forward<Self>(self);
     }
 
+    /* Bind named parameter. */
+    template<typename Self, typename T>
+    decltype(auto) bind(this Self&& self, const char* name, T&& arg)
+    {
+        int index = sqlite3_bind_parameter_index(self.stmt.get(), name);
+        if (0 == index)
+            throw std::invalid_argument(
+                std::string("No such parameter in SQL statement: ") + name);
+        int arg_idx = self.arg_idx;
+        self.arg_idx = index;
+        self.bindArg(arg);
+        self.arg_idx = std::max(arg_idx, index) + 1;
+    }
+
     /* Bind multiple arguments in one call starting from the current index. */
     template<typename... Args>
     decltype(auto) bind(this auto&& self, Args&&... args)
@@ -105,21 +120,20 @@ class SQLiteStatement {
         return (self.bind(std::forward<Args>(args)), ...);
     }
 
-    int step() noexcept
-    {
-        return sqlite3_step(stmt.get());
-    }
+    /* Will either return SQLITE_DONE, SQLITE_ERROR, or will throw an error. */
+    int step();
 
+    /* Supported types: std::string, std::optional<std::string>, int64_t */
     template<typename T>
     T column(int col);
 
     int columnType(int col);
 
   private:
+    // other bind overloads will be added on demand
+
     void bindArg(std::string_view text);
     void bindArg(int64_t num);
-
-    // other bind overloads will be added on demand
 
     std::unique_ptr<sqlite3_stmt, void (*)(sqlite3_stmt*)> stmt{
         nullptr, finalizeSQLiteStatement};
@@ -145,6 +159,11 @@ class SQLite {
     }
 
     void exec(const char* sql);
+
+    inline int getChanges()
+    {
+        return sqlite3_changes(db.get());
+    }
 
     inline int64_t getLastInsertRowId() const noexcept
     {
