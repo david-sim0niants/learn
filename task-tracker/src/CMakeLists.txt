@@ -1,5 +1,5 @@
 set(TARGET_NAME task-tracker)
-add_executable(${TARGET_NAME} main.cpp task_tracker.cpp platform.cpp)
+add_executable(${TARGET_NAME} main.cpp task_tracker.cpp platform.cpp sqlite_helpers.cpp)
 
 target_include_directories(${TARGET_NAME}
     PRIVATE ${ROOT_INCLUDE_DIR})
