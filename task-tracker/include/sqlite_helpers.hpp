@@ -103,6 +103,7 @@ class SQLiteStatement {
         self.arg_idx = index;
         self.bindArg(arg);
         self.arg_idx = std::max(arg_idx, index) + 1;
+        return self;
     }
 
     /* Bind multiple arguments in one call starting from the current index. */

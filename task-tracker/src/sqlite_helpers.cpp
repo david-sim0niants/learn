@@ -63,6 +63,15 @@ int64_t SQLiteStatement::column(int col)
 }
 
 template<>
+std::optional<int64_t> SQLiteStatement::column(int col)
+{
+    if (columnType(col) != SQLITE_NULL)
+        return column<int64_t>(col);
+    else
+        return std::nullopt;
+}
+
+template<>
 std::string SQLiteStatement::column(int col)
 {
     auto text = sqlite3_column_text(stmt.get(), col);

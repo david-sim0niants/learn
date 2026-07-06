@@ -156,6 +156,23 @@ class TaskTrackerBase::Impl {
             return id;
     }
 
+    int64_t remove(int64_t id)
+    {
+        constexpr char sql[] =
+            "DELETE FROM tasks WHERE id = ? RETURNING category;";
+
+        auto stmt = db.prepare(sql).bind(id);
+        int ret = stmt.step();
+
+        if (ret == SQLITE_ROW) {
+            auto category_id = stmt.column<std::optional<int64_t>>(0);
+            if (category_id)
+                removeCategoryIfUnused(*category_id);
+        }
+
+        return db.getChanges() > 0 ? id : -1;
+    }
+
   private:
     static Task toTask(SQLiteStatement& stmt)
     {
@@ -181,6 +198,15 @@ class TaskTrackerBase::Impl {
         if (db.prepare(sql).bind(category).step() != SQLITE_DONE)
             throw std::runtime_error(
                 "Unexpected error while creating or checking for category");
+    }
+
+    void removeCategoryIfUnused(int64_t category_id)
+    {
+        constexpr char sql[] =
+            "DELETE FROM categories WHERE id = :id AND NOT EXISTS (SELECT 1 FROM tasks WHERE category = :id);";
+        if (db.prepare(sql).bind(":id", category_id).step() != SQLITE_DONE)
+            throw std::runtime_error(
+                "Unexpected error while removing unused category");
     }
 
     SQLite db;
@@ -226,6 +252,11 @@ int64_t TaskTracker::add(std::string_view title)
 int64_t TaskTracker::update(int64_t id, const TaskUpdate& update)
 {
     return impl->update(id, update);
+}
+
+int64_t TaskTracker::remove(int64_t id)
+{
+    return impl->remove(id);
 }
 
 } // namespace task_tracker

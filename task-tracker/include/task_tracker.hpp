@@ -74,6 +74,7 @@ class TaskTracker final : public TaskTrackerView {
 
     int64_t add(std::string_view title);
     int64_t update(int64_t id, const TaskUpdate& update);
+    int64_t remove(int64_t id);
 };
 
 inline TaskTrackerView& taskTrackerView()

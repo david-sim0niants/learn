@@ -163,13 +163,18 @@ int remove(SubCmdCtx&& ctx)
 {
     auto& parser = ctx.parser;
 
-    int id;
+    int64_t id;
     parser.add_option("id", id, "ID of the task to delete")->required();
 
     CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
-    std::cout << "Deleting task ID: " << id << std::endl;
-    return 0;
+    if (taskTracker().remove(id) < 0) {
+        std::println("No task found with ID: {}", id);
+        return 1;
+    } else {
+        std::println("Deleted task with ID: {}", id);
+        return 0;
+    }
 }
 
 int report(SubCmdCtx&& ctx)
