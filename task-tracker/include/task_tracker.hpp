@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -58,14 +59,25 @@ struct TaskUpdate {
     std::optional<TaskStatus> status;
 };
 
+using Timestamp = std::chrono::system_clock::time_point;
+
+struct TaskHistoryEntry {
+    int64_t id;
+    int64_t task_id;
+    TaskStatus old_status, new_status;
+    Timestamp change_time;
+};
+
 class TaskTrackerView : protected TaskTrackerBase {
   public:
     static TaskTrackerView& instance();
 
     using Callback = std::function<bool(const Task& task)>;
+    using HistoryCallback = std::function<bool(const TaskHistoryEntry& entry)>;
 
     std::optional<Task> get(int64_t id);
     void list(const Callback& cb, const TaskFilter& filter = TaskFilter());
+    void history(int64_t task_id, const HistoryCallback& cb);
 };
 
 class TaskTracker final : public TaskTrackerView {

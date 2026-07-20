@@ -55,6 +55,18 @@ bool printTask(const task_tracker::Task& task)
     return true;
 }
 
+bool printHistoryEntry(const task_tracker::TaskHistoryEntry& entry)
+{
+    const char* status_map[] = {"Todo       ", "In Progress", "Done       "};
+    std::println("{}. Task ID: {}, Old Status: {} | "
+                 "New Status: {} | Change Time: {:%Y-%m-%d %H:%M:%S}",
+                 entry.id, entry.task_id,
+                 status_map[std::to_underlying(entry.old_status)],
+                 status_map[std::to_underlying(entry.new_status)],
+                 entry.change_time);
+    return true;
+}
+
 bool parseStatus(std::optional<task_tracker::TaskStatus>& status,
                  std::string_view status_str)
 {
@@ -239,7 +251,7 @@ int history(SubCmdCtx&& ctx)
 
     CLI11_PARSE(parser, ctx.argc, ctx.argv);
 
-    std::cout << "Viewing history for task ID: " << id << std::endl;
+    taskTrackerView().history(id, printHistoryEntry);
     return 0;
 }
 

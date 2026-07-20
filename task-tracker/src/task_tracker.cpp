@@ -33,6 +33,26 @@ void ensureTablesExist(SQLite& db)
     db.exec(ss.str().c_str());
 }
 
+SQLite ensureDB(int flags)
+{
+    try {
+        auto db = openDB(flags);
+        if (flags & SQLITE_OPEN_CREATE)
+            ensureTablesExist(db);
+        return db;
+    } catch (SQLiteException& e) {
+        if (e.code() != SQLITE_CANTOPEN || (flags & SQLITE_OPEN_READWRITE))
+            throw;
+
+        {
+            auto db = openDB((flags & ~SQLITE_OPEN_READONLY) |
+                             SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
+            ensureTablesExist(db);
+        }
+        return openDB(flags);
+    }
+}
+
 static const char* toString(TaskStatus status)
 {
     switch (status) {
@@ -51,9 +71,8 @@ static const char* toString(TaskStatus status)
 
 class TaskTrackerBase::Impl {
   public:
-    explicit Impl(int flags) : db(openDB(flags))
+    explicit Impl(int flags) : db(ensureDB(flags))
     {
-        ensureTablesExist(db);
     }
 
     int64_t add(std::string_view title)
@@ -173,6 +192,21 @@ class TaskTrackerBase::Impl {
         return db.getChanges() > 0 ? id : -1;
     }
 
+    void history(int64_t task_id, const TaskTrackerView::HistoryCallback& cb)
+    {
+        constexpr char sql[] = R""""(
+            SELECT id, task_id, old_status, new_status, change_time
+            FROM task_history
+            WHERE task_id = ?
+            ORDER BY change_time ASC;
+        )"""";
+
+        auto stmt = db.prepare(sql).bind(task_id);
+
+        while (stmt.step() == SQLITE_ROW)
+            cb(toHistoryEntry(stmt));
+    }
+
   private:
     static Task toTask(SQLiteStatement& stmt)
     {
@@ -188,6 +222,31 @@ class TaskTrackerBase::Impl {
             .category = stmt.column<std::optional<std::string>>(2),
             .status = toTaskStatus(stmt.column<std::string>(3)).value(),
         };
+    }
+
+    static TaskHistoryEntry toHistoryEntry(SQLiteStatement& stmt)
+    {
+        assert(stmt.columnType(0) == SQLITE_INTEGER);
+        assert(stmt.columnType(1) == SQLITE_INTEGER);
+        assert(stmt.columnType(2) == SQLITE_TEXT);
+        assert(stmt.columnType(3) == SQLITE_TEXT);
+        assert(stmt.columnType(4) == SQLITE_TEXT);
+
+        return TaskHistoryEntry{
+            .id = stmt.column<int64_t>(0),
+            .task_id = stmt.column<int64_t>(1),
+            .old_status = toTaskStatus(stmt.column<std::string>(2)).value(),
+            .new_status = toTaskStatus(stmt.column<std::string>(3)).value(),
+            .change_time = toTimestamp(stmt.column<std::string>(4)),
+        };
+    }
+
+    static Timestamp toTimestamp(const std::string& datetime)
+    {
+        std::istringstream ss(datetime);
+        Timestamp ts;
+        ss >> std::chrono::parse("%Y-%m-%d %H:%M:%S", ts);
+        return ts;
     }
 
     void ensureCategoryExists(std::string_view category)
@@ -233,6 +292,11 @@ std::optional<Task> TaskTrackerView::get(int64_t id)
 void TaskTrackerView::list(const Callback& cb, const TaskFilter& filter)
 {
     return impl->list(cb, filter);
+}
+
+void TaskTrackerView::history(int64_t task_id, const HistoryCallback& cb)
+{
+    return impl->history(task_id, cb);
 }
 
 TaskTracker& TaskTracker::instance()
